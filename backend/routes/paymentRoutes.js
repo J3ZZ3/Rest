@@ -3,6 +3,6 @@ const router = express.Router();
 const { createPayment } = require('../controllers/paymentController');
 const authMiddleware = require('../middleware/authMiddleware');
 
-router.post('/', authMiddleware, createPayment);
+router.post('/create', authMiddleware, createPayment);
 
 module.exports = router;

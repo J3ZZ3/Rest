@@ -1,43 +1,33 @@
 const Payment = require('../models/paymentModel');
 const Reservation = require('../models/reservationModel');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const paypal = require('@paypal/checkout-server-sdk');
+
+// Configure PayPal SDK
+const environment = new paypal.core.SandboxEnvironment(process.env.PAYPAL_CLIENT_ID, process.env.PAYPAL_CLIENT_SECRET);
+const client = new paypal.core.PayPalHttpClient(environment);
 
 exports.createPayment = async (req, res) => {
+  const { amount, email, name } = req.body;
+
+  const request = new paypal.orders.OrdersCreateRequest();
+  request.prefer("return=representation");
+  request.requestBody({
+    intent: 'CAPTURE',
+    purchase_units: [{
+      amount: {
+        currency_code: 'USD',
+        value: amount.toString(),
+      },
+    }],
+    application_context: {
+      return_url: 'https://your-frontend-url/return', // URL to redirect after payment
+      cancel_url: 'https://your-frontend-url/cancel', // URL to redirect if payment is canceled
+    },
+  });
+
   try {
-    const { reservationId, amount, paymentType } = req.body;
-    
-    if (paymentType === 'pay_on_arrival') {
-      const payment = await Payment.create({
-        reservationId,
-        amount,
-        paymentType,
-        status: 'pending'
-      });
-      
-      await Reservation.findByIdAndUpdate(reservationId, { paymentStatus: 'pending' });
-      
-      return res.status(200).json({ payment });
-    }
-    
-    // Create Stripe payment intent for online payment
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount * 100, // Convert to cents
-      currency: 'usd',
-      metadata: { reservationId }
-    });
-    
-    const payment = await Payment.create({
-      reservationId,
-      amount,
-      paymentType: 'online',
-      status: 'pending',
-      transactionId: paymentIntent.id
-    });
-    
-    res.status(200).json({
-      clientSecret: paymentIntent.client_secret,
-      payment
-    });
+    const order = await client.execute(request);
+    res.status(200).json({ approvalUrl: order.result.links.find(link => link.rel === 'approve').href });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
