@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   TextInput,
@@ -11,13 +11,21 @@ import {
 import axios from 'axios';
 import { useRouter } from 'expo-router';
 import Icon from 'react-native-vector-icons/MaterialIcons'; // Choose a suitable icon set
+import { useAuth } from '../context/AuthContext';
 
 export default function LoginScreen() {
+  const { login, token } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (token) {
+      router.replace('/restaurants');
+    }
+  }, [token]);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -37,14 +45,15 @@ export default function LoginScreen() {
         }
       );
 
-      const { token } = response.data;
-      console.log('Login successful, token received:', token);
+      const userData = {
+        token: response.data.token,
+        userId: response.data.userId,
+        userEmail: email,
+        userName: response.data.name
+      };
 
-      // Navigate to Restaurants screen with the token
-      router.replace({
-        pathname: '/restaurants',
-        params: { token },
-      });
+      await login(userData);
+      router.replace('/restaurants');
     } catch (err) {
       console.error('Login error:', err.response?.data || err.message);
       setError(
